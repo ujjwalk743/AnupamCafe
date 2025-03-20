@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyber Cafe Customer Management</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <style>
+        /* Custom styles */
+        .form-container {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .table-container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            overflow-x: auto;
+        }
+        .export-btn {
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container">
+        <!-- Header -->
+        <h1 class="text-center my-4">Cyber Cafe Customer Management</h1>
+
+        <!-- Customer Form -->
+        <div class="form-container shadow">
+            <form id="customerForm" class="needs-validation" novalidate>
+                <div class="mb-3">
+                    <label for="name" class="form-label">Full Name</label>
+                    <input type="text" class="form-control" id="name" required>
+                    <div class="invalid-feedback">Please enter customer name</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="name" class="form-label">Father/Husband Name</label>
+                    <input type="text" class="form-control" id="name" required>
+                    <div class="invalid-feedback">Please enter customer name</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="mobile" class="form-label">Mobile Number</label>
+                    <input type="tel" class="form-control" id="mobile" pattern="[0-9]{10}" required>
+                    <div class="invalid-feedback">Please enter 10-digit mobile number</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="documentType" class="form-label">Document Type</label>
+                    <select class="form-select" id="documentType" required>
+                        <option value="">Choose...</option>
+                        <option>Aadhaar</option>
+                        <option>Voter ID</option>
+                        <option>PAN Card</option>
+                        <option>Passport</option>
+                        <option>Driving License</option>
+                    </select>
+                    <div class="invalid-feedback">Please select document type</div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100">Add Customer</button>
+            </form>
+        </div>
+
+        <!-- Search and Export -->
+        <div class="table-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <input type="text" id="searchInput" class="form-control w-50" placeholder="Search customers...">
+                <button id="exportBtn" class="btn btn-success export-btn">Export to CSV</button>
+            </div>
+
+            <!-- Customer Table -->
+            <table class="table table-striped table-hover shadow">
+                <thead class="table-dark">
+                    <tr>
+                        <th scope="col" data-sort="name">Name ↑↓</th>
+                        <th scope="col" data-sort="mobile">Mobile ↑↓</th>
+                        <th scope="col" data-sort="documentType">Document Type ↑↓</th>
+                        <th scope="col">Timestamp ↑↓</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="customerTable">
+                    <!-- Table rows will be populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- App JavaScript -->
+    <script>
+        // Customer Management Class
+        class CustomerManager {
+            constructor() {
+                this.customers = JSON.parse(localStorage.getItem('customers')) || [];
+                this.currentSortField = null;
+                this.sortAsc = true;
+                
+                this.init();
+            }
+
+            init() {
+                this.renderTable();
+                this.addEventListeners();
+            }
+
+            // Save customers to localStorage
+            saveCustomers() {
+                localStorage.setItem('customers', JSON.stringify(this.customers));
+            }
+
+            // Add new customer
+            addCustomer(customer) {
+                this.customers.push({
+                    ...customer,
+                    timestamp: new Date().toISOString()
+                });
+                this.saveCustomers();
+                this.renderTable();
+            }
+
+            // Delete customer
+            deleteCustomer(index) {
+                this.customers.splice(index, 1);
+                this.saveCustomers();
+                this.renderTable();
+            }
+
+            // Sort customers
+            sortCustomers(field) {
+                if (this.currentSortField === field) {
+                    this.sortAsc = !this.sortAsc;
+                } else {
+                    this.currentSortField = field;
+                    this.sortAsc = true;
+                }
+
+                this.customers.sort((a, b) => {
+                    if (a[field] < b[field]) return this.sortAsc ? -1 : 1;
+                    if (a[field] > b[field]) return this.sortAsc ? 1 : -1;
+                    return 0;
+                });
+
+                this.renderTable();
+            }
+
+            // Filter customers based on search query
+            searchCustomers(query) {
+                return this.customers.filter(customer => 
+                    Object.values(customer).some(value =>
+                        String(value).toLowerCase().includes(query.toLowerCase())
+                    )
+                );
+            }
+
+            // Export to CSV
+            exportToCSV() {
+                const csvContent = [
+                    ['Name', 'Mobile', 'Document Type', 'Timestamp'],
+                    ...this.customers.map(customer => [
+                        customer.name,
+                        customer.mobile,
+                        customer.documentType,
+                        customer.timestamp
+                    ])
+                ].map(row => row.join(',')).join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'customers.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+            }
+
+            // Render table
+            renderTable(filteredCustomers = null) {
+                const customers = filteredCustomers || this.customers;
+                const tbody = document.getElementById('customerTable');
+                tbody.innerHTML = customers.map((customer, index) => `
+                    <tr>
+                        <td>${customer.name}</td>
+                        <td>${customer.mobile}</td>
+                        <td>${customer.documentType}</td>
+                        <td>${new Date(customer.timestamp).toLocaleString()}</td>
+                        <td>
+                            <button onclick="customerManager.deleteCustomer(${index})" 
+                                    class="btn btn-danger btn-sm">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Add event listeners
+            addEventListeners() {
+                // Form submission
+                document.getElementById('customerForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    if (!e.target.checkValidity()) {
+                        e.stopPropagation();
+                        e.target.classList.add('was-validated');
+                        return;
+                    }
+
+                    this.addCustomer({
+                        name: document.getElementById('name').value,
+                        mobile: document.getElementById('mobile').value,
+                        documentType: document.getElementById('documentType').value
+                    });
+
+                    e.target.reset();
+                    e.target.classList.remove('was-validated');
+                });
+
+                // Search input
+                document.getElementById('searchInput').addEventListener('input', (e) => {
+                    const filtered = this.searchCustomers(e.target.value);
+                    this.renderTable(filtered);
+                });
+
+                // Sort headers
+                document.querySelectorAll('[data-sort]').forEach(header => {
+                    header.addEventListener('click', () => {
+                        this.sortCustomers(header.dataset.sort);
+                    });
+                });
+
+                // Export button
+                document.getElementById('exportBtn').addEventListener('click', () => {
+                    this.exportToCSV();
+                });
+            }
+        }
+
+        // Initialize Customer Manager
+        const customerManager = new CustomerManager();
+    </script>
+</body>
+</html>
